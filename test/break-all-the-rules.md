@@ -105,6 +105,14 @@ Strong **with** different style {MD050}
 <!-- markdownlint-disable-next-line MD053 -->
 [url]: https://example.com/page
 
+| table  | header |
+|--------|--------|
+ {MD055} | cell   |
+
+| table   | header |
+|---------|--------|
+| {MD056} |
+
 <!-- markdownlint-configure-file {
   "required-headings": {
     "headings": [

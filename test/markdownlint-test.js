@@ -4,14 +4,14 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const Ajv = require("ajv");
 const jsYaml = require("js-yaml");
 const md = require("markdown-it")();
 const pluginInline = require("markdown-it-for-inline");
 const pluginSub = require("markdown-it-sub");
 const pluginSup = require("markdown-it-sup");
 const test = require("ava").default;
-const { "exports": packageExports, homepage, version } =
-  require("../package.json");
+const { "exports": packageExports, homepage, version } = require("../package.json");
 const markdownlint = require("../lib/markdownlint");
 const constants = require("../lib/constants");
 const rules = require("../lib/rules");
@@ -19,12 +19,13 @@ const customRules = require("./rules/rules.js");
 const configSchema = require("../schema/markdownlint-config-schema.json");
 
 const deprecatedRuleNames = new Set(constants.deprecatedRuleNames);
-const jsonSchemaVersion = "http://json-schema.org/draft-07/schema#";
-const configSchemaUri = "https://example.com/configSchema";
-const configSchemaStrictUri = "https://example.com/configSchemaStrict";
 const configSchemaStrict = {
   ...configSchema,
+  "$id": `${configSchema.$id}-strict`,
   "additionalProperties": false
+};
+const ajvOptions = {
+  "allowUnionTypes": true
 };
 
 test("simpleAsync", (t) => new Promise((resolve) => {
@@ -82,7 +83,7 @@ test("projectFiles", (t) => {
       "schema/*.md"
     ]))
     .then((files) => {
-      t.is(files.length, 57);
+      t.is(files.length, 60);
       const options = {
         files,
         "config": require("../.markdownlint.json")
@@ -426,118 +427,114 @@ test("styleFiles", async(t) => {
   }
 });
 
-test("styleAll", (t) => new Promise((resolve) => {
-  t.plan(2);
+test("styleAll", async(t) => {
+  t.plan(1);
   const options = {
     "files": [ "./test/break-all-the-rules.md" ],
     "config": require("../style/all.json"),
     "noInlineConfig": true,
     "resultVersion": 0
   };
-  markdownlint(options, function callback(err, actualResult) {
-    t.falsy(err);
-    const expectedResult = {
-      "./test/break-all-the-rules.md": {
-        "MD001": [ 3 ],
-        "MD003": [ 5, 31 ],
-        "MD004": [ 8 ],
-        "MD005": [ 12 ],
-        "MD007": [ 8, 11 ],
-        "MD009": [ 14 ],
-        "MD010": [ 14 ],
-        "MD011": [ 16 ],
-        "MD012": [ 18 ],
-        "MD013": [ 21 ],
-        "MD014": [ 23 ],
-        "MD018": [ 25 ],
-        "MD019": [ 27 ],
-        "MD020": [ 29 ],
-        "MD021": [ 31 ],
-        "MD022": [ 86 ],
-        "MD023": [ 40 ],
-        "MD024": [ 35 ],
-        "MD026": [ 40 ],
-        "MD027": [ 42 ],
-        "MD028": [ 43 ],
-        "MD029": [ 47 ],
-        "MD030": [ 8 ],
-        "MD031": [ 50 ],
-        "MD032": [ 7, 8, 51 ],
-        "MD033": [ 55 ],
-        "MD034": [ 57 ],
-        "MD035": [ 61 ],
-        "MD036": [ 65 ],
-        "MD037": [ 67 ],
-        "MD038": [ 69 ],
-        "MD039": [ 71 ],
-        "MD040": [ 73 ],
-        "MD041": [ 1 ],
-        "MD042": [ 81 ],
-        "MD045": [ 85 ],
-        "MD046": [ 49, 73, 77 ],
-        "MD047": [ 126 ],
-        "MD048": [ 77 ],
-        "MD049": [ 90 ],
-        "MD050": [ 94 ],
-        "MD051": [ 96 ],
-        "MD052": [ 98 ],
-        "MD053": [ 100 ]
-      }
-    };
-    // @ts-ignore
-    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
-    resolve();
-  });
-}));
+  const actualResult = await markdownlint.promises.markdownlint(options);
+  const expectedResult = {
+    "./test/break-all-the-rules.md": {
+      "MD001": [ 3 ],
+      "MD003": [ 5, 31 ],
+      "MD004": [ 8 ],
+      "MD005": [ 12 ],
+      "MD007": [ 8, 11 ],
+      "MD009": [ 14 ],
+      "MD010": [ 14 ],
+      "MD011": [ 16 ],
+      "MD012": [ 18 ],
+      "MD013": [ 21 ],
+      "MD014": [ 23 ],
+      "MD018": [ 25 ],
+      "MD019": [ 27 ],
+      "MD020": [ 29 ],
+      "MD021": [ 31 ],
+      "MD022": [ 86 ],
+      "MD023": [ 40 ],
+      "MD024": [ 35 ],
+      "MD026": [ 40 ],
+      "MD027": [ 42 ],
+      "MD028": [ 43 ],
+      "MD029": [ 47 ],
+      "MD030": [ 8 ],
+      "MD031": [ 50 ],
+      "MD032": [ 7, 8, 51 ],
+      "MD033": [ 55 ],
+      "MD034": [ 57 ],
+      "MD035": [ 61 ],
+      "MD036": [ 65 ],
+      "MD037": [ 67 ],
+      "MD038": [ 69 ],
+      "MD039": [ 71 ],
+      "MD040": [ 73 ],
+      "MD041": [ 1 ],
+      "MD042": [ 81 ],
+      "MD045": [ 85 ],
+      "MD046": [ 49, 73, 77 ],
+      "MD047": [ 134 ],
+      "MD048": [ 77 ],
+      "MD049": [ 90 ],
+      "MD050": [ 94 ],
+      "MD051": [ 96 ],
+      "MD052": [ 98 ],
+      "MD053": [ 100 ],
+      "MD055": [ 110 ],
+      "MD056": [ 114 ]
+    }
+  };
+  t.deepEqual(actualResult, expectedResult, "Undetected issues.");
+});
 
-test("styleRelaxed", (t) => new Promise((resolve) => {
-  t.plan(2);
+test("styleRelaxed", async(t) => {
+  t.plan(1);
   const options = {
     "files": [ "./test/break-all-the-rules.md" ],
     "config": require("../style/relaxed.json"),
     "noInlineConfig": true,
     "resultVersion": 0
   };
-  markdownlint(options, function callback(err, actualResult) {
-    t.falsy(err);
-    const expectedResult = {
-      "./test/break-all-the-rules.md": {
-        "MD001": [ 3 ],
-        "MD003": [ 5, 31 ],
-        "MD004": [ 8 ],
-        "MD005": [ 12 ],
-        "MD011": [ 16 ],
-        "MD014": [ 23 ],
-        "MD018": [ 25 ],
-        "MD019": [ 27 ],
-        "MD020": [ 29 ],
-        "MD021": [ 31 ],
-        "MD022": [ 86 ],
-        "MD023": [ 40 ],
-        "MD024": [ 35 ],
-        "MD026": [ 40 ],
-        "MD029": [ 47 ],
-        "MD031": [ 50 ],
-        "MD032": [ 7, 8, 51 ],
-        "MD035": [ 61 ],
-        "MD036": [ 65 ],
-        "MD042": [ 81 ],
-        "MD045": [ 85 ],
-        "MD046": [ 49, 73, 77 ],
-        "MD047": [ 126 ],
-        "MD048": [ 77 ],
-        "MD049": [ 90 ],
-        "MD050": [ 94 ],
-        "MD051": [ 96 ],
-        "MD052": [ 98 ],
-        "MD053": [ 100 ]
-      }
-    };
-    // @ts-ignore
-    t.deepEqual(actualResult, expectedResult, "Undetected issues.");
-    resolve();
-  });
-}));
+  const actualResult = await markdownlint.promises.markdownlint(options);
+  const expectedResult = {
+    "./test/break-all-the-rules.md": {
+      "MD001": [ 3 ],
+      "MD003": [ 5, 31 ],
+      "MD004": [ 8 ],
+      "MD005": [ 12 ],
+      "MD011": [ 16 ],
+      "MD014": [ 23 ],
+      "MD018": [ 25 ],
+      "MD019": [ 27 ],
+      "MD020": [ 29 ],
+      "MD021": [ 31 ],
+      "MD022": [ 86 ],
+      "MD023": [ 40 ],
+      "MD024": [ 35 ],
+      "MD026": [ 40 ],
+      "MD029": [ 47 ],
+      "MD031": [ 50 ],
+      "MD032": [ 7, 8, 51 ],
+      "MD035": [ 61 ],
+      "MD036": [ 65 ],
+      "MD042": [ 81 ],
+      "MD045": [ 85 ],
+      "MD046": [ 49, 73, 77 ],
+      "MD047": [ 134 ],
+      "MD048": [ 77 ],
+      "MD049": [ 90 ],
+      "MD050": [ 94 ],
+      "MD051": [ 96 ],
+      "MD052": [ 98 ],
+      "MD053": [ 100 ],
+      "MD055": [ 110 ],
+      "MD056": [ 114 ]
+    }
+  };
+  t.deepEqual(actualResult, expectedResult, "Undetected issues.");
+});
 
 test("nullFrontMatter", (t) => new Promise((resolve) => {
   t.plan(2);
@@ -840,7 +837,7 @@ test("customFileSystemAsync", (t) => new Promise((resolve) => {
 }));
 
 test("readme", async(t) => {
-  t.plan(121);
+  t.plan(126);
   const tagToRules = {};
   for (const rule of rules) {
     for (const tag of rule.tags) {
@@ -915,11 +912,10 @@ test("readme", async(t) => {
 });
 
 test("validateJsonUsingConfigSchemaStrict", async(t) => {
-  t.plan(171);
-  const { addSchema, validate } =
-    await import("@hyperjump/json-schema/draft-07");
-  addSchema(configSchemaStrict, configSchemaStrictUri);
-  const validateConfigSchema = await validate(configSchemaStrictUri);
+  t.plan(178);
+  // @ts-ignore
+  const ajv = new Ajv(ajvOptions);
+  const validateSchemaStrict = ajv.compile(configSchemaStrict);
   const configRe =
     /^[\s\S]*<!-- markdownlint-configure-file ([\s\S]*) -->[\s\S]*$/;
   const ignoreFiles = new Set([
@@ -943,21 +939,21 @@ test("validateJsonUsingConfigSchemaStrict", async(t) => {
     const data = fs.readFileSync(file, "utf8");
     if (configRe.test(data)) {
       const config = data.replace(configRe, "$1");
-      const result = validateConfigSchema(JSON.parse(config), "BASIC");
-      t.true(
-        result.valid,
-        `${file}\n${JSON.stringify(result, null, 2)}`
+      const result = validateSchemaStrict(JSON.parse(config));
+      t.truthy(
+        result,
+        `${file}\n${JSON.stringify(validateSchemaStrict.errors, null, 2)}`
       );
     }
   }
 });
 
-test("validateConfigSchemaAllowsUnknownProperties", async(t) => {
+test("validateConfigSchemaAllowsUnknownProperties", (t) => {
   t.plan(4);
-  const { addSchema, validate } =
-    await import("@hyperjump/json-schema/draft-07");
-  addSchema(configSchema, configSchemaUri);
-  addSchema(configSchemaStrict, configSchemaStrictUri);
+  // @ts-ignore
+  const ajv = new Ajv(ajvOptions);
+  const validateSchema = ajv.compile(configSchema);
+  const validateSchemaStrict = ajv.compile(configSchemaStrict);
   const testCases = [
     {
       "property": true
@@ -969,38 +965,33 @@ test("validateConfigSchemaAllowsUnknownProperties", async(t) => {
     }
   ];
   for (const testCase of testCases) {
-    const defaultResult =
-      // eslint-disable-next-line no-await-in-loop
-      await validate(configSchemaUri, testCase, "BASIC");
-    t.true(
-      defaultResult.valid,
-      "Unknown property blocked by default: " + JSON.stringify(testCase)
+    const result = validateSchema(testCase);
+    t.truthy(
+      result,
+      "Unknown property blocked by default: " + JSON.stringify(validateSchema.errors, null, 2)
     );
-    const strictResult =
-      // eslint-disable-next-line no-await-in-loop
-      await validate(configSchemaStrictUri, testCase, "BASIC");
-    t.false(
-      strictResult.valid,
-      "Unknown property allowed when strict: " + JSON.stringify(testCase)
+    const resultStrict = validateSchemaStrict(testCase);
+    t.falsy(
+      resultStrict,
+      "Unknown property allowed when strict: " + JSON.stringify(validateSchemaStrict.errors, null, 2)
     );
   }
 });
 
-test("validateConfigSchemaAppliesToUnknownProperties", async(t) => {
+test("validateConfigSchemaAppliesToUnknownProperties", (t) => {
   t.plan(4);
-  const { addSchema, validate } =
-    await import("@hyperjump/json-schema/draft-07");
-  addSchema(configSchema, configSchemaUri);
-  const validateConfigSchema = await validate(configSchemaUri);
+  // @ts-ignore
+  const ajv = new Ajv(ajvOptions);
+  const validateSchema = ajv.compile(configSchema);
   for (const allowed of [ true, {} ]) {
-    t.true(
-      validateConfigSchema({ "property": allowed }, "BASIC").valid,
+    t.truthy(
+      validateSchema({ "property": allowed }),
       `Unknown property value ${allowed} blocked`
     );
   }
   for (const blocked of [ 2, "string" ]) {
-    t.false(
-      validateConfigSchema({ "property": blocked }, "BASIC").valid,
+    t.falsy(
+      validateSchema({ "property": blocked }),
       `Unknown property value ${blocked} allowed`
     );
   }
@@ -1011,11 +1002,10 @@ test("validateConfigExampleJson", async(t) => {
   const { "default": stripJsonComments } = await import("strip-json-comments");
 
   // Validate schema
-  const { addSchema, validate } =
-    await import("@hyperjump/json-schema/draft-07");
-  const schemaResult =
-    await validate(jsonSchemaVersion, configSchema, "BASIC");
-  t.true(schemaResult.valid);
+  // @ts-ignore
+  const ajv = new Ajv(ajvOptions);
+  const validateSchema = ajv.compile(configSchema);
+  t.is(configSchema.$id, configSchema.properties.$schema.default);
 
   // Validate JSONC
   const fileJson = ".markdownlint.jsonc";
@@ -1024,11 +1014,10 @@ test("validateConfigExampleJson", async(t) => {
     "utf8"
   );
   const jsonObject = JSON.parse(stripJsonComments(dataJson));
-  addSchema(configSchemaStrict, configSchemaStrictUri);
-  const result = await validate(configSchemaStrictUri, jsonObject, "BASIC");
-  t.true(
-    result.valid,
-    `${fileJson}\n${JSON.stringify(result, null, 2)}`
+  const result = validateSchema(jsonObject);
+  t.truthy(
+    result,
+    `${fileJson}\n${JSON.stringify(validateSchema.errors, null, 2)}`
   );
 
   // Validate YAML
@@ -1043,7 +1032,7 @@ test("validateConfigExampleJson", async(t) => {
 });
 
 test("allBuiltInRulesHaveValidUrl", (t) => {
-  t.plan(144);
+  t.plan(150);
   for (const rule of rules) {
     // @ts-ignore
     t.truthy(rule.information);
